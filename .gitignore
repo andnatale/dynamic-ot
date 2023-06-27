@@ -1,0 +1,17 @@
+Paper/
+Meshes/ 
+Old_files/
+Figures/
+src/__pycache__/
+__pycache__/
+*.pyc
+
+# Ignore vim files:
+*~
+*.swp
+*.swo
+*.swn
+
+~                                                                                                              
+~                                                                                                              
+~         
