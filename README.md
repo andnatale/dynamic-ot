@@ -18,7 +18,7 @@ Journal of Scientific Computing 91.2 (2022): 38.
 Th e code is based on the finite element software [Firedrake](https://www.firedrakeproject.org/). On an Ubuntu workstation this can be installed via
 ```
     $ curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
-     $ python3 firedrake-install
+    $ python3 firedrake-install
 ```
 More options/information on the installation and further dependencies can be found [here](https://www.firedrakeproject.org/download.html).
 
