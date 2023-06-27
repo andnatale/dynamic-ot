@@ -5,9 +5,9 @@
 from firedrake import *
 from .utils_firedrake import *
 from .utils import *
+from .ExtrudedVectorField import ExtrudedVectorField
 
-
-class OTPrimalDualSolver:
+class OTPrimalDualSolver(ExtrudedVectorField):
     """ Primal dual (PDGH) solver for dynamic transport problem """
   
     def __init__(self, rho0, rho1, base_mesh = None, quads = False, layers = 10, degX = 0):
@@ -51,14 +51,17 @@ class OTPrimalDualSolver:
         self.W =  V * F
 
         # Variables
-        self.sigma = Function(V)
-        self.q = Function(self.X)
- 
         x = SpatialCoordinate(mesh)
 
         e1 = Constant(as_vector([0,0,1]))   
         self.sigma0 = project((rho1(x[0],x[1])*x[2]+rho0(x[0],x[1])*(1.-x[2]))*e1,V)
-     
+        
+        
+        self.q = Function(self.X)
+        sigma = Function(V)
+        super().__init__(mesh,sigma) #mesh sigma are stored as attributes
+
+    
     def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 100, projection = projection):
         """
         OT problem solver 
@@ -108,19 +111,6 @@ class OTPrimalDualSolver:
             
             # Update iteration counter
             i+=1
-
-
-sdev = 0.1
-rho0 = lambda x0,x1 : exp(-0.5*(x0-.3)**2/(sdev**2))*exp(-0.5*(x1)**2/(sdev**2))
-rho1 = lambda x0,x1 : exp(-0.5*(x0-.7)**2/(sdev**2))*exp(-0.5*(x1)**2/(sdev**2))
-
-otsolver = OTPrimalDualSolver(rho0,rho1)
-otsolver.solve(1.,1.)
-
-
-
-
-
 
 
 

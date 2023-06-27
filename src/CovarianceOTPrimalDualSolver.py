@@ -7,17 +7,14 @@
 from firedrake import *
 from .utils_firedrake import *
 from .utils import *
+from .ExtrudedVectorField import ExtrudedVectorField
 import numpy as np
 
 # For visualization
 import matplotlib.pyplot as plt
-#import imageio
-import os
-from PIL import Image
-Image.LOAD_TRUNCATED_IMAGES = True
-from matplotlib.ticker import FormatStrFormatter
 
-class CovarianceOTPrimalDualSolver:
+
+class CovarianceOTPrimalDualSolver(ExtrudedVectorField):
     """ Primal dual (PDGH) solver for dynamic transport problem with covariance constraint """
   
     def __init__(self, rho0, rho1, base_mesh = None, refinement_level = 5, layers = 15, degX = 0, shift = (0.,0.)):
@@ -65,7 +62,8 @@ class CovarianceOTPrimalDualSolver:
         self.area = assemble(project(Constant(1),F)*dx)
 
         # Variables
-        self.sigma = Function(V)
+        sigma = Function(V)
+        super().__init__(sigma)
         self.q = Function(self.X)
        
         self.l = [Function(F) for i in range(5)]
@@ -156,13 +154,6 @@ class CovarianceOTPrimalDualSolver:
             # Update iteration counter
             j+=1
 
-    def extract_densities(self):
-        """ Get list of densities at different times"""
-                
-        rho = ExtrudedDGFunction(self.mesh,vfamily = "CG")
-        rho.interpolate(self.sigma[2])
-        return rho.split() 
-
     def compute_moments(self, orders = None):
          """ Compute list of moments: each moment is the vector of moments in time
 
@@ -192,50 +183,7 @@ class CovarianceOTPrimalDualSolver:
              moments.append(moment.dat.data[:int_rho[i].nvdofs])
          return moments
 
- 
-    def make_gif(self,file_name = "output.gif", clean=False):
-
-
-        frames = self.extract_densities()  # Insert your list of numpy arrays here
-
-
-        # Initialize a list to store individual frame filenames
-        frame_filenames = []
-        
-        vmin = -1e-2 
-        vmax = np.max([np.max(frames[i].dat.data[:]) for i in range(len(frames))])+1e-2
-        n = 40  
-        levels = np.linspace(vmin, vmax, n+1)
-        # Generate individual frames and save them as temporary files
-        for i in range(len(frames)):
-     
-            fig, axes = plt.subplots()
-            contours = tricontourf(frames[i],levels = levels,axes=axes, cmap="coolwarm")
-            axes.axis('off')
-            axes.set_aspect("equal")
-            frame_filename = f'frame_{i}.png'  # Generate a unique filename for each frame
-            fig.savefig(frame_filename, bbox_inches='tight', pad_inches=0)
-            frame_filenames.append(frame_filename)
-            
-            fig.clf()
-        
-        
-        
-        images = []
-        # Open and append each image to the list
-        for filename in frame_filenames:
-            img = Image.open(filename)
-            images.append(img)
-        
-        # Save the images as a GIF
-        output_file = file_name
-        images[0].save(output_file, save_all=True, append_images=images[1:], duration=200, loop=0)
-        plt.close('all')
-        if clean:
-            # Clean up temporary frame files
-            for frame_filename in frame_filenames:
-                os.remove(frame_filename)
-   
+  
     def make_moments_plot(self, orders = [[4,0],[0,4]], file_name="moments.png"):
         
 
