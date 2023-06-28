@@ -7,14 +7,14 @@
 from firedrake import *
 from .utils_firedrake import *
 from .utils import *
-from .ExtrudedVectorField import ExtrudedVectorField
+from .OptimalTransportProblem import OptimalTransportProblem
 import numpy as np
 
 # For visualization
 import matplotlib.pyplot as plt
 
 
-class CovarianceOTPrimalDualSolver(ExtrudedVectorField):
+class CovarianceOTPrimalDualSolver(OptimalTransportProblem):
     """ Primal dual (PDGH) solver for dynamic transport problem with covariance constraint """
   
     def __init__(self, rho0, rho1, base_mesh = None, refinement_level = 5, layers = 15, degX = 0, shift = (0.,0.)):
@@ -32,59 +32,21 @@ class CovarianceOTPrimalDualSolver(ExtrudedVectorField):
                   
         if base_mesh is None:
             base_mesh = UnitDiskMesh(refinement_level = refinement_level)
-        self.base_mesh = base_mesh
-        mesh = ExtrudedMesh(base_mesh, layers, layer_height=1./layers, extrusion_type='uniform')     
-        self.mesh = mesh
-
-        # Function spaces
-        F = FunctionSpace(mesh,"DG",0)
-        cell, _ = F.ufl_element().cell()._cells
         
-        hspace = "RT"
+        # Initialize mesh and variables (denisities normalized to have unit mass)
+        super().__init__(rho0, rho1, base_mesh , layers, degX, shift, unit_mass = True)
 
-        DG = FiniteElement("DG", cell, 0)
-        CG = FiniteElement("CG", interval, 1)
-        Vv_tr_element = TensorProductElement(DG, CG)
+        F = FunctionSpace(self.mesh,"DG",0)  
 
-        DGv = FiniteElement("DG", interval, 0)
-        Bh = FiniteElement(hspace, cell, 1)
-        Vh_tr_element = TensorProductElement(Bh,DGv)
-
-        V_element = HDivElement(Vh_tr_element) + HDivElement(Vv_tr_element)
-        V = FunctionSpace(mesh, V_element)
-        F_element = TensorProductElement(FiniteElement("DG",cell,degX),DGv)
-
-        self.X = VectorFunctionSpace(mesh, F_element)
-        self.W =  V * F
-
-
-        #Area of base mesh
-        self.area = assemble(project(Constant(1),F)*dx)
-
-        # Variables
-        sigma = Function(V)
-        super().__init__(sigma)
-        self.q = Function(self.X)
-       
+        # Lagrange multiplier for covariance constraint
         self.l = [Function(F) for i in range(5)]
 
-        x = SpatialCoordinate(mesh)
-        
-        self.e1 = Constant(as_vector([0,0,1])) 
-        self.shift= shift  
-        x0,x1 = x[0] - shift[0],x[1]-shift[1]
-        rho1f=  project(rho1(x0,x1)*self.e1,V)
-        rho0f=  project(rho0(x0,x1)*self.e1,V)
-        rho1f = rho1f / assemble(rho1f[2]*dx)
-        rho0f = rho0f / assemble(rho0f[2]*dx)
-        self.sigma0 = project((rho1f*x[2]+rho0f*(1.-x[2])),V)
-
         # Weights for mean and covariance constraints
-        self.weights = [project(x0,F), 
-                        project(x1,F),
-                        project(x0*x1,F),
-                        project(x0**2,F), 
-                        project(x1**2,F)]
+        self.weights = [project(self.x0,F), 
+                        project(self.x1,F),
+                        project(self.x0*self.x1,F),
+                        project(self.x0**2,F), 
+                        project(self.x1**2,F)]
         
         # Error vectors for primal dual algorithm
         self.err_vec = []
@@ -164,14 +126,11 @@ class CovarianceOTPrimalDualSolver(ExtrudedVectorField):
              weights = self.weights
              
          else:
-             x = SpatialCoordinate(self.mesh)
-             x0 = x[0]-self.shift[0]
-             x1 = x[1]-self.shift[1]
              F = FunctionSpace(self.mesh,"DG",0)
              weights = []
              for i in range(len(orders)):
                   p , q  = orders[i]
-                  weights.append(project(x0**p*x1**q,F))
+                  weights.append(project(self.x0**p*self.x1**q,F))
                   
 
          nmoments = len(weights)

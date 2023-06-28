@@ -1,6 +1,7 @@
-""" Hdiv conforming extruded vector field visualization/post-processing utilities
+""" Class collecting variables and vi visualization/post-processing utilities for optimal transport problems
    
-     Assumes vertical component CG1 in vertical DG0 in horizontal
+        Primal dual variables: density momentum
+    Assumes vertical component CG1 in vertical DG0 in horizontal
 """
 
 #import sys
@@ -21,17 +22,67 @@ from matplotlib.ticker import FormatStrFormatter
 
 
 
-class ExtrudedVectorField:
+class OptimalTransportProblem:
   
-    def __init__(self,mesh,sigma):
+    def __init__(self, rho0, rho1, base_mesh , layers = 15, degX = 0, shift = (0.,0.), unit_mass = False):
         
+        """
+        :arg rho0: function, initial density
+        :arg rho1: function, final density
+        :arg base_mesh: space mesh
+        :arg layers: int number of time steps  
+        :arg degX: int polynomial degree in space of q dual variable to (rho,m)
+        :arg shift: shift on coordinates for moment computations
+        :arg unit_mass: flag to normalize mass to one
+        """
 
-        """
-        :arg sigma: Hdiv vector field on tensor product mesh  
-        """
+        self.base_mesh = base_mesh
+        mesh = ExtrudedMesh(base_mesh, layers, layer_height=1./layers, extrusion_type='uniform')
         self.mesh = mesh
-        self.sigma = sigma
+
+        # Function spaces
+        F = FunctionSpace(mesh,"DG",0)
+        cell, _ = F.ufl_element().cell()._cells
+
+        hspace = "RT"
+
+        DG = FiniteElement("DG", cell, 0)
+        CG = FiniteElement("CG", interval, 1)
+        Vv_tr_element = TensorProductElement(DG, CG)
+
+        DGv = FiniteElement("DG", interval, 0)
+        Bh = FiniteElement(hspace, cell, 1)
+        Vh_tr_element = TensorProductElement(Bh,DGv)
+
+        V_element = HDivElement(Vh_tr_element) + HDivElement(Vv_tr_element)
+        V = FunctionSpace(mesh, V_element)
+        F_element = TensorProductElement(FiniteElement("DG",cell,degX),DGv)
+
+        self.X = VectorFunctionSpace(mesh, F_element)
+        self.W =  V * F
+
+
+        #Area of base mesh
+        self.area = assemble(project(Constant(1),F)*dx)
+
+        # Variables
+        self.sigma = Function(V)
+        self.q = Function(self.X)
+
+        x = SpatialCoordinate(mesh)
+
+        self.e1 = Constant(as_vector([0,0,1]))
+        self.shift= shift
+        self.x0,self.x1 = x[0] - shift[0],x[1]-shift[1]
+        rho1f=  project(rho1(self.x0,self.x1)*self.e1,V)
+        rho0f=  project(rho0(self.x0,self.x1)*self.e1,V)
         
+        if unit_mass:
+            rho1f = rho1f / assemble(rho1f[2]*dx)
+            rho0f = rho0f / assemble(rho0f[2]*dx)
+        
+        self.sigma0 = project((rho1f*x[2]+rho0f*(1.-x[2])),V)
+
 
     def extract_vertical_component(self):
         """ Get list of vertical component/extruded direction (i.e., densities for OT) at different times"""

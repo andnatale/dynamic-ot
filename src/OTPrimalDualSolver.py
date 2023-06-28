@@ -5,9 +5,9 @@
 from firedrake import *
 from .utils_firedrake import *
 from .utils import *
-from .ExtrudedVectorField import ExtrudedVectorField
+from .OptimalTransportProblem import OptimalTransportProblem
 
-class OTPrimalDualSolver(ExtrudedVectorField):
+class OTPrimalDualSolver(OptimalTransportProblem):
     """ Primal dual (PDGH) solver for dynamic transport problem """
   
     def __init__(self, rho0, rho1, base_mesh = None, quads = False, layers = 10, degX = 0):
@@ -22,46 +22,11 @@ class OTPrimalDualSolver(ExtrudedVectorField):
                   
         if base_mesh is None:
             base_mesh = UnitSquareMesh(layers,layers,quadrilateral = quads)
+            
+        # Initialize mesh and variables (denisities normalized to have unit mass)
+        super().__init__(rho0, rho1, base_mesh , layers, degX, unit_mass = True)
 
-        mesh = ExtrudedMesh(base_mesh, layers, layer_height=1./layers, extrusion_type='uniform')
 
-        # Function spaces
-        F = FunctionSpace(mesh,"DG",0)
-        cell, _ = F.ufl_element().cell()._cells
-
-        if quads:
-            hspace = 'RTCF'
-        else:
-            hspace = "RT"
-
-        DG = FiniteElement("DG", cell, 0)
-        CG = FiniteElement("CG", interval, 1)
-        Vv_tr_element = TensorProductElement(DG, CG)
-
-        DGv = FiniteElement("DG", interval, 0)
-        Bh = FiniteElement(hspace, cell, 1)
-        Vh_tr_element = TensorProductElement(Bh,DGv)
-
-        V_element = HDivElement(Vh_tr_element) + HDivElement(Vv_tr_element)
-        V = FunctionSpace(mesh, V_element)
-        F_element = TensorProductElement(FiniteElement("DG",cell,degX),DGv)
-
-        self.X = VectorFunctionSpace(mesh, F_element)
-
-        self.W =  V * F
-
-        # Variables
-        x = SpatialCoordinate(mesh)
-
-        e1 = Constant(as_vector([0,0,1]))   
-        self.sigma0 = project((rho1(x[0],x[1])*x[2]+rho0(x[0],x[1])*(1.-x[2]))*e1,V)
-        
-        
-        self.q = Function(self.X)
-        sigma = Function(V)
-        super().__init__(mesh,sigma) #mesh sigma are stored as attributes
-
-    
     def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 100, projection = projection):
         """
         OT problem solver 
