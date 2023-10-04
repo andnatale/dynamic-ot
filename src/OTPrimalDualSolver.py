@@ -43,40 +43,39 @@ class OTPrimalDualSolver(OptimalTransportProblem):
 
         # Auxiliary functions
         sigma_oldX = Function(self.X)
-        sigmaX = Function(self.X)
         pxi = Function(self.X)
-        u = Function(self.W)
 
         # Continuity constraint projection
-        divsolver = DivProjectorSolver(self.W, self.sigma -tau1*self.q ,self.sigma0, u)
-
+        divsolver = DivProjectorSolver(self.sigmaX -tau1*self.q ,self.sigma0, 
+                                                     mixed_problem = False, V= None)
+                                                     #mixed_problem = True, V = self.V)
+                          
         while err > tol and i < NmaxIter:
 
-            sigma_oldX.assign(sigmaX)
+            sigma_oldX.assign(self.sigmaX)
             
             # Proximal operator continuity
-            divsolver.solve()
-            sigma, _ =  u.split()
-            self.sigma.assign(sigma)
-            sigmaX.assign(project(sigma,self.X))   
-         
+            self.sigmaX.assign(divsolver.get_projected_solution(self.X))
+            
             # Proximal operator kinetic energy
-            pxi.assign(assemble(self.q+tau2*(2*sigmaX-sigma_oldX)))            
+            pxi.assign(assemble(self.q+tau2*(2*self.sigmaX-sigma_oldX)))            
             ApplyOnDofs(projection,pxi)
             self.q.assign(pxi)
  
             # Errors
-            err = np.sqrt(assemble(dot(sigmaX-sigma_oldX,sigmaX-sigma_oldX)*dx))
+            err = np.sqrt(assemble(dot(self.sigmaX-sigma_oldX,self.sigmaX-sigma_oldX)*dx))
             err_vec.append(err) 
-            errdiv_vec.append(np.sqrt(assemble(div(sigma)**2*dx)))          
+            #errdiv_vec.append(np.sqrt(assemble(div(sigma)**2*dx)))          
           
             print('Iteration  '+str(i))
-            print('Optimality error : '+str(err) +' Min density: '+ str(np.min(sigmaX.dat.data[:,2])))
-            print('Optimality error continuity : '+ str(errdiv_vec[i]))
+            print('Optimality error : '+str(err) +' Min density: '+ str(np.min(self.sigmaX.dat.data[:,2])))
+            #print('Optimality error continuity : '+ str(errdiv_vec[i]))
             
             # Update iteration counter
             i+=1
 
 
-
+        # Get H(div) solution 
+        divsolver = DivProjectorSolver(self.sigmaX, self.sigma0, mixed_problem = True, V = self.V)
+        self.sigma.assign(divsolver.get_projected_solution(self.V))
 

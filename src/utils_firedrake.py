@@ -42,7 +42,7 @@ class ExtrudedDGFunction(Function):
        return split_fun
 
 
-class DivProjectorSolver(LinearVariationalSolver):
+class DivProjectorSolver_old(LinearVariationalSolver):
    """ Mixed Poisson Solver (projection on div free constraint)"""
 
    def __init__(self,W,f,u0,u):
@@ -82,10 +82,89 @@ class DivProjectorSolver(LinearVariationalSolver):
                                                      nullspace = nullspace,
                                                      solver_parameters = parameters)
     
+class DivProjectorSolver(LinearVariationalSolver):
+    """ Mixed Poisson Solver (projection on div free constraint)"""
 
+    def __init__(self,f,u0, mixed_problem = True, V = None):
+        """ 
+        :arg f: Function (vector field) to be projected
+        :arg u0: H(div) function with correct boundary conditions (fluxes)
+        :arg mixed_problem: flag to solve problem in mixed formulation
+        :arg V: H(div) function space to be provided for mixed_formulation
+        """
+        self.mixed_problem = mixed_problem  
+        self.f = f
+      
+        mesh = u0.ufl_domain()
+        if mixed_problem:
+            """ Set up a mixed problem with the function space from proj_f and the lowest order DG space"""
+            
+            F = FunctionSpace(mesh,"DG",0)
+            W = V * F
 
-def ApplyOnDofs(method,f):
-    """ Apply method on degrees of freedom of vector field f
+            v_basis = VectorSpaceBasis(constant=True)
+            nullspace = MixedVectorSpaceBasis(W, [W.sub(0), v_basis])
+
+            sigma, phi= TrialFunctions(W)
+            eta, psi = TestFunctions(W)
+
+            a = (dot(sigma,eta)+ div(eta)*phi + div(sigma)*psi)*dx
+            L = dot(f,eta)*dx
+     
+            bcs = [ DirichletBC(W.sub(0), u0, "on_boundary"),
+                    DirichletBC(W.sub(0), u0, "top"),
+                    DirichletBC(W.sub(0), u0, "bottom")]
+          
+            parameters = {"ksp_type": "gmres",
+                          "ksp_rtol": 1e-12,
+                          "pc_type": "fieldsplit",
+                          "pc_fieldsplit_type": "schur",
+                          "pc_fieldsplit_schur_fact_type": "full",
+                          "fieldsplit_0_ksp_type": "preonly",
+                          "fieldsplit_0_pc_type": "ilu",
+                          "fieldsplit_1_ksp_type": "preonly",
+                          "pc_fieldsplit_schur_precondition": "selfp",
+                          "fieldsplit_1_pc_type": "hypre" }
+            
+            self.u = Function(W)  
+            problem = LinearVariationalProblem(a,L, self.u, bcs = bcs)
+            super(LinearVariationalSolver,self).__init__(problem,
+                                                         nullspace = nullspace,
+                                                         solver_parameters = parameters)
+        else:
+            """ Projector on the weakly enforced div constraint """        
+
+            n = FacetNormal(mesh)   
+            F = FunctionSpace(mesh, "CR", 1, vfamily="CG", vdegree= 1)
+           
+            phi = TrialFunction(F)
+            psi = TestFunction(F)
+            
+            a = dot(grad(phi),grad(psi))*dx(degree =0)
+            L = -dot(f,grad(psi))*dx(degree=0) + dot(u0,n)*psi*ds_tb
+        
+            nullspace = VectorSpaceBasis(constant=True)
+        
+            self.u = Function(F)  
+            problem = LinearVariationalProblem(a,L, self.u)
+            super(LinearVariationalSolver,self).__init__(problem,
+                                                         nullspace = nullspace)
+
+        
+    def get_projected_solution(self,X):
+        """ Project solution on X"""
+        if self.mixed_problem:
+            self.solve()
+            sigma, _ =  self.u.split()
+            return project(sigma, X)
+        else: 
+            self.solve() 
+            return project(self.f+grad(self.u),X)
+             
+  
+   
+def ApplyOnDofs(method,f,*args):
+    """ Apply method on degrees of freedom of vector or scalar field f
      
     :arg method: function Rn -> Rn (n number of components of f) 
     :arg f: firedrake Vector Function
@@ -93,9 +172,12 @@ def ApplyOnDofs(method,f):
 
     data = f.dat.data[:]
     
-    data = method(*np.split(data,data.shape[1],1))
-     
-    f.dat.data[:] = np.concatenate(data,axis = 1) 
+    if len(data.shape)>1:
+        data = method(*np.split(data,data.shape[1],1),*args)
+        f.dat.data[:] = np.concatenate(data,axis = 1)
+    else:
+        data = method(data,*args)
+        f.dat.data[:] = data.copy() 
     
 
 
