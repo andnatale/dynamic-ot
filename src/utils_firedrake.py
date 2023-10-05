@@ -92,8 +92,11 @@ class DivProjectorSolver(LinearVariationalSolver):
         else:
             """ Projector on the weakly enforced div constraint """        
 
+            if mesh.topological_dimension() ==2: hfamily = "CG"
+            else: hfamily = "CR"
+
             n = FacetNormal(mesh)   
-            W = FunctionSpace(mesh, "CR", 1, vfamily="CG", vdegree= 1)
+            W = FunctionSpace(mesh, hfamily, 1, vfamily="CG", vdegree= 1)
            
             phi = TrialFunction(W)
             psi = TestFunction(W)
@@ -148,8 +151,13 @@ class UnbalancedDivProjectorSolver(LinearVariationalSolver):
             """ Projector on the weakly enforced div constraint """        
 
             n = FacetNormal(mesh)   
-            W = FunctionSpace(mesh, "CR", 1, vfamily="CG", vdegree= 1)
-           
+
+            if mesh.topological_dimension() ==2: hfamily = "CG"
+            else: hfamily = "CR"
+
+            W = FunctionSpace(mesh, hfamily , 1, vfamily="CG", vdegree= 1)
+         
+ 
             phi = TrialFunction(W)
             psi = TestFunction(W)
             
@@ -183,7 +191,7 @@ def ApplyOnDofs(method,f,*args):
     """ Apply method on degrees of freedom of vector or scalar field f
      
     :arg method: function Rn -> Rn (n number of components of f) 
-    :arg f: firedrake Vector Function
+    :arg f: firedrake Vector Function 
     """
 
     data = f.dat.data[:]
@@ -195,6 +203,39 @@ def ApplyOnDofs(method,f,*args):
         data = method(data,*args)
         f.dat.data[:] = data.copy() 
     
+
+def ApplyOnDofsList(method,list_fun,*args):
+    """ Apply method on degrees of freedom of list of vector or scalar fields f
+     
+    :arg method: function Rn -> Rn (n number of components of f) 
+    :arg list_fun: List of firedrake Vector Function 
+    """
+    data_list = []
+    shape_list = [] 
+    for i in range(len(list_fun)):
+ 
+        f_data = list_fun[i].dat.data[:].copy()
+        if f_data.ndim ==1 : f_data = f_data.reshape((-1,1))
+        
+        data_list.append(f_data)
+        shape_list.append(f_data.shape)
+  
+    data = np.concatenate(data_list,axis=1)
+    
+    if len(data.shape)>1:
+        data = method(*np.split(data,data.shape[1],1),*args)
+        index = 0 
+        for j in range(len(data_list)):
+             projected_fun = np.concatenate(data[index:index+shape_list[j][1]],axis = 1)
+             if projected_fun.shape[1] ==1 : projected_fun = projected_fun.reshape((-1,))
+             list_fun[j].dat.data[:] = projected_fun
+             index = index + shape_list[j][1]
+    else:
+        data = method(data,*args)
+        list_fun[0].dat.data[:] = data.copy() 
+    
+
+
 
 
 

@@ -44,7 +44,8 @@ class OptimalTransportProblem:
         F = FunctionSpace(mesh,"DG",0)
         cell, _ = F.ufl_element().cell()._cells
 
-        hspace = "RT"
+        if base_mesh.topological_dimension() ==1: hspace ="CG"
+        else: hspace = "RT"
 
         DG = FiniteElement("DG", cell, 0)
         CG = FiniteElement("CG", interval, 1)
@@ -71,19 +72,29 @@ class OptimalTransportProblem:
         self.sigmaX = Function(self.X)
 
         x = SpatialCoordinate(mesh)
+        if base_mesh.topological_dimension() ==1:
+            time_index = 1
+            self.e1 = Constant(as_vector([0,1]))
+            rho1f=  project(rho1(x[0])*self.e1,V)
+            rho0f=  project(rho0(x[0])*self.e1,V)
 
-        self.e1 = Constant(as_vector([0,0,1]))
-        self.shift= shift
-        self.x0,self.x1 = x[0] - shift[0],x[1]-shift[1]
-        rho1f=  project(rho1(self.x0,self.x1)*self.e1,V)
-        rho0f=  project(rho0(self.x0,self.x1)*self.e1,V)
-        
+        elif base_mesh.topological_dimension() ==2:
+            time_index = 2
+            self.e1 = Constant(as_vector([0,0,1]))
+            self.shift= shift
+            self.x0,self.x1 = x[0] - shift[0],x[1]-shift[1]
+            rho1f=  project(rho1(self.x0,self.x1)*self.e1,V)
+            rho0f=  project(rho0(self.x0,self.x1)*self.e1,V)
+        else:
+            raise NotImplementedError
+    
         if unit_mass:
-            rho1f = rho1f / assemble(rho1f[2]*dx)
-            rho0f = rho0f / assemble(rho0f[2]*dx)
+            rho1f = rho1f / assemble(rho1f[time_index]*dx)
+            rho0f = rho0f / assemble(rho0f[time_index]*dx)
         
-        self.sigma0 = project((rho1f*x[2]+rho0f*(1.-x[2])),V)
+        self.sigma0 = project((rho1f*x[time_index]+rho0f*(1.-x[time_index])),V)
 
+        self.time_index = time_index
 
     def extract_vertical_component(self):
         """ Get list of vertical component/extruded direction (i.e., densities for OT) at different times"""
