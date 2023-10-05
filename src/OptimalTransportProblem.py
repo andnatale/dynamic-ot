@@ -57,9 +57,10 @@ class OptimalTransportProblem:
         V_element = HDivElement(Vh_tr_element) + HDivElement(Vv_tr_element)
         V = FunctionSpace(mesh, V_element)
         F_element = TensorProductElement(FiniteElement("DG",cell,degX),DGv)
-        self.V = V
-
-        self.X = VectorFunctionSpace(mesh, F_element)
+       
+        self.F = F #DG0 space
+        self.V = V #HDIV space
+        self.X = VectorFunctionSpace(mesh, F_element) #DG SPACE (vector field)
 
         #Area of base mesh
         self.area = assemble(project(Constant(1),F)*dx)
@@ -68,7 +69,7 @@ class OptimalTransportProblem:
         self.sigma = Function(V)
         self.q = Function(self.X)
         self.sigmaX = Function(self.X)
-        
+
         x = SpatialCoordinate(mesh)
 
         self.e1 = Constant(as_vector([0,0,1]))

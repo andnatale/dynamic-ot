@@ -1,7 +1,8 @@
-""" Projection on constraint a + |b|^2/2<=0 """
 import numpy as np  
 
 def projection(b1, b2,a):
+    """ Projection on constraint a + |b|^2/2<=0 """
+    
     Index_1 = (a + 0.5*(b1**2 + b2**2)>0)
     Index_2 = ((b1 == 0) * (b2 == 0))
     
@@ -54,3 +55,18 @@ def projection(b1, b2,a):
     an[bnulIndex] = 0.
     
     return  b1n, b2n,an
+
+
+
+
+def unbalanced_projection(b1,b2,a,r):
+    raise NotImplementedError
+
+
+
+
+
+
+
+
+

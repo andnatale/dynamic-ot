@@ -5,9 +5,9 @@
 from firedrake import *
 from .utils_firedrake import *
 from .utils import *
-from .OptimalTransportProblem import OptimalTransportProblem
+from .UnbalancedOptimalTransportProblem import UnbalancedOptimalTransportProblem
 
-class OTPrimalDualSolver(OptimalTransportProblem):
+class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
     """ Primal dual (PDGH) solver for dynamic transport problem """
   
     def __init__(self, rho0, rho1, base_mesh = None, quads = False, layers = 20, degX = 0):
@@ -43,27 +43,34 @@ class OTPrimalDualSolver(OptimalTransportProblem):
 
         # Auxiliary functions
         sigma_oldX = Function(self.X)
+        alpha_old = Function(self.F)
         pxi = Function(self.X)
-
+        pzeta = Function(self.F)        
+ 
         # Continuity constraint projection
-        divsolver = DivProjectorSolver(self.sigmaX -tau1*self.q ,self.sigma0, 
+        divsolver = UnbalancedDivProjectorSolver(self.sigmaX -tau1*self.q ,self.sigma0, 
                                                      mixed_problem = False, V= None)
-                                                     #mixed_problem = True, V = self.V)
-                          
+                                                                               
         while err > tol and i < NmaxIter:
 
             sigma_oldX.assign(self.sigmaX)
-            
+            alpha_old.assign(self.alpha)
+
             # Proximal operator continuity
-            self.sigmaX.assign(divsolver.get_projected_solution(self.X))
+            sigma_sol, alpha_sol = divsolver.get_projected_solution(self.X,self.F)
+            self.sigmaX.assign(sigma_sol)
+            self.alpha.assigna(alpha_sol)
             
             # Proximal operator kinetic energy
-            pxi.assign(assemble(self.q+tau2*(2*self.sigmaX-sigma_oldX)))            
-            ApplyOnDofs(projection,pxi)
+            pxi.assign(assemble(self.q+tau2*(2*self.sigmaX-sigma_oldX))) 
+            pzeta.assign(assemble(self.r + tau2*(2*self.alpha - alpha_old)))
+            ApplyOnDofs(projection,pxi,pzeta)
             self.q.assign(pxi)
+            self.r.assign(pzeta)
  
             # Errors
-            err = np.sqrt(assemble(dot(self.sigmaX-sigma_oldX,self.sigmaX-sigma_oldX)*dx))
+            err = np.sqrt(assemble(dot(self.sigmaX-sigma_oldX,self.sigmaX-sigma_oldX)*dx)
+                          assemble(dot(self.alpha-alpha_old,self.alpha-alpha_old)*dx)) 
             err_vec.append(err) 
             #errdiv_vec.append(np.sqrt(assemble(div(sigma)**2*dx)))          
           
