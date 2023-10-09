@@ -7,28 +7,26 @@ from .utils_firedrake import *
 from .utils import *
 from .UnbalancedOptimalTransportProblem import UnbalancedOptimalTransportProblem
 
-class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
+class BoundaryOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
     """ Primal dual (PDGH) solver for dynamic transport problem """
-  
-    def __init__(self, rho0, rho1, base_mesh = None, quads = False, layers = 20, degX = 0):
+    def __init__(self, rho0, rho1, gamma_0, gamma_1, base_mesh=None, layers = 15, degX = 0, shift = (0.,0.), unit_mass = False):
+
         """
-        :arg rho0: function, initial density
-        :arg rho1: function, final density
+        :arg rho0: function, initial density (bulk)
+        :arg rho1: function, final density (bulk)
+        :arg gamma0: function, initial density (interface)
+        :arg gamma1: function, final density (interface)
         :arg base_mesh: space mesh
-        :arg quads: flag for quadrilateral mesh if base_mesh not provided
         :arg layers: int number of time steps  
         :arg degX: int polynomial degree in space of q dual variable to (rho,m)
+        :arg shift: shift on coordinates for moment computations
+        :arg unit_mass: flag to normalize mass to one (both on bulk and interface)
         """
-                  
-        if base_mesh is None:
-            #base_mesh = UnitSquareMesh(layers,layers,quadrilateral = quads)
-            base_mesh = UnitIntervalMesh(layers)
-                       
+                      
         # Initialize mesh and variables (denisities normalized to have unit mass)
-        super().__init__(rho0, rho1, base_mesh , layers, degX, unit_mass = True)
+        super().__init__(rho0, rho1, gamma_0, gamma_1, base_mesh = base_mesh, layers = layers, degX = degX, shift = shift, unit_mass = unit_mass)
 
-
-    def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 2e3, projection = projection):
+    def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 2e3, projection_bulk = projection, projection_interface = projection):
         """
         OT problem solver 
 
@@ -41,12 +39,16 @@ class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
         err =  1.
         err_vec = []
         errdiv_vec = []    
+        
+        #TODO
 
+"""
         # Auxiliary functions
         sigma_oldX = Function(self.X)
         alpha_old = Function(self.F)
         pxi = Function(self.X)
         pzeta = Function(self.F)        
+
  
         # Continuity constraint projection
         divsolver = UnbalancedDivProjectorSolver(self.sigmaX -tau1*self.q, self.alpha-tau1*self.r,
@@ -87,4 +89,4 @@ class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
         # Get H(div) solution 
         divsolver = DivProjectorSolver(self.sigmaX, self.sigma0, mixed_problem = True, V = self.V)
         self.sigma.assign(divsolver.get_projected_solution(self.V))
-
+"""
