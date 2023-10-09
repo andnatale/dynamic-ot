@@ -10,12 +10,13 @@ Journal of Scientific Computing 91.2 (2022): 38.
 ## Source codes
 
 * *OTPrimalDualSolver*: class for solving dynamical OT via primal dual optimization 
+* *UnbalancedOTPrimalDualSolver*: class for solving dynamical Unbalanced OT via primal dual optimization 
 * *CovarianceOTPrimalDualSolver*: class for solving dynamical OT via primal dual optimization with constained covariance
 * *utils_firedrake*: finite element solvers 
 * *utils*: Legendre dual of cost function
 
 ## Dependencies
-Th e code is based on the finite element software [Firedrake](https://www.firedrakeproject.org/). On an Ubuntu workstation this can be installed via
+The code is based on the finite element software [Firedrake](https://www.firedrakeproject.org/). On an Ubuntu workstation this can be installed via
 ```
     $ curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
     $ python3 firedrake-install
