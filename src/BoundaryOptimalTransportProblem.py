@@ -45,23 +45,40 @@ class BoundaryOptimalTransportProblem:
             self.layers = layers
             self.base_mesh = UnitSquareMesh(layers,layers)
             self.boundary_mesh = PeriodicIntervalMesh(4*layers,4)
-            self.map_boundary_mesh = get_map_boundary_mesh_unitsquare(self)
+            self.map_boundary_mesh = self.get_map_boundary_mesh_unitsquare()
 
         else:
             raise(NotImplementedError)
 
         # Initialize mesh and variables (denisities normalized to have unit mass)
-        ot_bulk = OptimalTransportProblem(rho0, rho1, base_mesh , layers, degX, unit_mass = unit_mass) #unit_mass = True imposes same mass on densities
-        ot_bulk.Fluxes = FunctionSpace(ot_bulk.mesh, hspace = "CR", hdegree =1, vspace = "DG", vdegree = 0)
-        ot_bulk.fluxes = Function(self.Fluxes) # Scalar function for unbalanced setting (div sigma + alpha =0)        
-        ot_bulk.multiplier_fluxes = Function(self.Fluxes)
+        self.ot_bulk = OptimalTransportProblem(rho0, rho1, self.base_mesh, layers, degX, unit_mass = unit_mass)                                                          #unit_mass = True imposes same mass on densities
+        self.ot_bulk.Fluxes = FunctionSpace(self.ot_bulk.mesh,"CR", 1, vfamily = "DG", vdegree = 0)
+        
+        # Fluxes on boundary ( sigma dot n = fluxes)        
+        self.ot_bulk.fluxes = Function(self.ot_bulk.Fluxes)
+        #Multiplier of constraint: fluxes + alpha =0
+        self.ot_bulk.multiplier_fluxes = Function(self.ot_bulk.Fluxes)
+        # Representation of source term alpha as bulk function
+        self.ot_bulk.alpha = Function(self.ot_bulk.Fluxes)
+        
 
-        ot_interface = UnbalancedOptimalTransportProblem(gamma_0,gamma_1,base_mesh = boundary_mesh, layers, degX, unit_mass = unit_mass)
+        self.ot_interface = UnbalancedOptimalTransportProblem(gamma_0,gamma_1,base_mesh = self.boundary_mesh,
+                                                  layers=layers, degX=degX, unit_mass = unit_mass)
+
+        #Multiplier of constraint: fluxes + alpha =0
+        self.ot_interface.multiplier_fluxes = Function(self.ot_interface.F) 
+        #Represenation of fluxes as interface function
+        self.ot_interface.fluxes = Function(self.ot_interface.F)
 
 
     def apply_map_boundary_mesh(self,g):
-        """ Apply map to function g with  DOFS = #FACETS"""
+        """ Apply map to function g with  DOFS = #FACETS in bulk"""
         return np.reshape((self.map_boundary_mesh@np.reshape(g.dat.data,(-1,self.layers))),(-1))
+
+    def apply_adjoint_map_boundary_mesh(self,g):
+        """ Apply map to function g with  DOFS = #FACETS on interface"""
+        return np.reshape((self.map_boundary_mesh.transpose()@np.reshape(g.dat.data,(-1,self.layers))),(-1))
+
 
     def get_map_boundary_mesh_unitsquare(self):
         """ Builds map from bulk to boundary dofs for UnitSquareMesh  (x=[0,1], y = [0,1])

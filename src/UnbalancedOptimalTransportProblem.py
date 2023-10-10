@@ -39,7 +39,7 @@ class UnbalancedOptimalTransportProblem(OptimalTransportProblem):
         :arg unit_mass: flag to normalize mass to one
         """
         # Initialize mesh and variables (denisities normalized to have unit mass)
-        super().__init__(rho0, rho1, base_mesh , layers, degX, unit_mass = True)
+        super().__init__(rho0, rho1, base_mesh , layers, degX, unit_mass = unit_mass)
 
         self.alpha = Function(self.F) # Scalar function for unbalanced setting (div sigma + alpha =0)        
         self.r = Function(self.F) # Dual variable to alpha

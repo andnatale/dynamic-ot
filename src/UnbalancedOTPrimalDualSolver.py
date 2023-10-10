@@ -10,7 +10,7 @@ from .UnbalancedOptimalTransportProblem import UnbalancedOptimalTransportProblem
 class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
     """ Primal dual (PDGH) solver for dynamic transport problem """
   
-    def __init__(self, rho0, rho1, base_mesh = None, quads = False, layers = 20, degX = 0):
+    def __init__(self, rho0, rho1, base_mesh = None, quads = False, layers = 20, degX = 0, unit_mass= False):
         """
         :arg rho0: function, initial density
         :arg rho1: function, final density
@@ -24,8 +24,8 @@ class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
             #base_mesh = UnitSquareMesh(layers,layers,quadrilateral = quads)
             base_mesh = UnitIntervalMesh(layers)
                        
-        # Initialize mesh and variables (denisities normalized to have unit mass)
-        super().__init__(rho0, rho1, base_mesh , layers, degX, unit_mass = True)
+        # Initialize mesh and variables (denisities normalized to have unit mass if unit_mass=True)
+        super().__init__(rho0, rho1, base_mesh , layers, degX, unit_mass = unit_mass)
 
 
     def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 2e3, projection = projection):
