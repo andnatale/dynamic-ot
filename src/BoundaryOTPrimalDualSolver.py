@@ -27,7 +27,7 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
         super().__init__(rho0, rho1, gamma_0, gamma_1, base_mesh = base_mesh, layers = layers, degX = degX, 
                                                                          shift = shift, unit_mass = unit_mass)
 
-    def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 5e2, projection_bulk = projection,
+    def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 2e3, projection_bulk = projection,
                                                                     projection_interface = projection):
         """
         OT problem solver 
@@ -82,7 +82,7 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
             sigma_sol, fluxes_sol = divsolver_bulk.get_projected_solution(self.ot_bulk.X,self.ot_bulk.Fluxes)
             self.ot_bulk.sigmaX.assign(sigma_sol)
             self.ot_bulk.fluxes.assign(fluxes_sol)
-            
+
             self.ot_interface.fluxes.dat.data[:] = self.apply_map_boundary_mesh(self.ot_bulk.fluxes)
             
             # Proximal operator continuity interface
@@ -106,7 +106,7 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
              
             # Update fluxes multiplier
             self.ot_interface.multiplier_fluxes.assign(self.ot_interface.multiplier_fluxes + 
-                    tau2*(2*self.ot_interface.fluxes - fluxes_f_old + 2*self.ot_interface.alpha - alpha_f_old)) 
+                   tau2*(2*self.ot_interface.fluxes - fluxes_f_old + 2*self.ot_interface.alpha - alpha_f_old)) 
             self.ot_bulk.multiplier_fluxes.dat.data[:] = self.apply_adjoint_map_boundary_mesh(self.ot_interface.multiplier_fluxes)  
             
             # Errors
@@ -122,7 +122,7 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
                     + str(np.min(self.ot_interface.sigmaX.dat.data[:,self.ot_interface.time_index])))
 
             #print('Optimality error continuity : '+ str(errdiv_vec[i]))
-            
+            err = 10 
             # Update iteration counter
             i+=1
             

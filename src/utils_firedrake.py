@@ -230,8 +230,8 @@ class BoundaryDivProjectorSolver(LinearVariationalSolver):
             phi = TrialFunction(W)
             psi = TestFunction(W)
             
-            a = dot(grad(phi),grad(psi))*dx + phi*psi*ds_v#(degree=0)
-            L = -dot(f,grad(psi))*dx + dot(u0,n)*psi*ds_tb - g*psi*ds_v#(degree=0)
+            a = dot(grad(phi),grad(psi))*dx + phi*psi*ds_v(degree=0)
+            L = -dot(f,grad(psi))*dx + dot(u0,n)*psi*ds_tb + g*psi*ds_v(degree=0)
         
             #nullspace = VectorSpaceBasis(constant=True)
      
