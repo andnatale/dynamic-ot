@@ -45,9 +45,10 @@ class ExtrudedDGFunction(Function):
 class DivProjectorSolver(LinearVariationalSolver):
     """ Mixed Poisson Solver (projection on div free constraint)"""
 
-    def __init__(self,f,u0, mixed_problem = True, V = None):
+    def __init__(self,f, f_out, u0, mixed_problem = True, V = None):
         """ 
         :arg f: Function (vector field) to be projected
+        :arg f_out: Projection of f (output)
         :arg u0: H(div) function with correct boundary conditions (fluxes)
         :arg mixed_problem: flag to solve problem in mixed formulation
         :arg V: H(div) function space to be provided for mixed_formulation
@@ -88,7 +89,10 @@ class DivProjectorSolver(LinearVariationalSolver):
             
             self.u = Function(W)  
             problem = LinearVariationalProblem(a,L, self.u, bcs = bcs)
-        
+             
+            sigma, _ = self.u.split()
+            self.Projector_f = Projector(sigma,f_out)
+
         else:
             """ Projector on the weakly enforced div constraint """        
 
@@ -111,23 +115,18 @@ class DivProjectorSolver(LinearVariationalSolver):
             
             self.u = Function(W)  
             problem = LinearVariationalProblem(a,L, self.u)
-
+            
+            self.Projector_f= Projector(self.f+grad(self.u),f_out)
          
         super(LinearVariationalSolver,self).__init__(problem,
                                                          nullspace = nullspace,
                                                          solver_parameters = parameters)
 
-    def get_projected_solution(self,X):
+    def project(self):
         """ Project solution on X"""
-        if self.mixed_problem:
-            self.solve()
-            sigma, _ =  self.u.split()
-            return project(sigma, X)
-        else: 
-            self.solve() 
-            return project(self.f+grad(self.u),X)
-             
-  
+        self.solve()
+        self.Projector_f.project()
+ 
 class UnbalancedDivProjectorSolver(LinearVariationalSolver):
     """ Mixed Poisson Solver (projection on continuity constraint with source terms)
         
@@ -137,7 +136,7 @@ class UnbalancedDivProjectorSolver(LinearVariationalSolver):
 
     """
  
-    def __init__(self,f,g,u0, mixed_problem = True, V = None):
+    def __init__(self,f,g,f_out,g_out,u0, mixed_problem = True, V = None):
         """ 
         :arg f: Function (vector field) to be projected
         :arg g: Function (scalar field) to be projected
@@ -150,9 +149,32 @@ class UnbalancedDivProjectorSolver(LinearVariationalSolver):
         self.g = g
 
         mesh = u0.ufl_domain()
+
+
         if mixed_problem:
             """ Set up a mixed problem with the function space from proj_f and the lowest order DG space"""
-            raise NotImplementedError        
+            #raise NotImplementedError 
+         
+            u = TrialFunction(V)
+            v = TestFunction(V)
+       
+            a = dot(v,u)*dx + div(u)*div(v)*dx
+            L = dot(v,f)*dx -div(v)*g*dx
+
+            bcs = [ DirichletBC(V, u0, "top"),
+                    DirichletBC(V, u0, "bottom")]
+          
+            parameters = {"ksp_type": "cg",
+                          "pc_type": "ilu"}
+            
+            self.u = Function(V)  
+            problem = LinearVariationalProblem(a,L, self.u, bcs = bcs)
+             
+            self.Projector_f = Projector(self.u,f_out)
+            self.Projector_g = Projector(-div(self.u),g_out)
+
+            
+       
         else:
             """ Projector on the weakly enforced div constraint """        
 
@@ -178,20 +200,21 @@ class UnbalancedDivProjectorSolver(LinearVariationalSolver):
             self.u = Function(W)  
             problem = LinearVariationalProblem(a,L, self.u)
 
+            self.Projector_f = Projector(self.f+grad(self.u),f_out)
+            self.Projector_g = Projector(self.g-self.u,g_out)
+
          
         super(LinearVariationalSolver,self).__init__(problem,
                                                          #nullspace = nullspace,
                                                          solver_parameters = parameters)
 
-    def get_projected_solution(self,X0,X1):
+    def project(self):
         """ Project solution on X"""
-        if self.mixed_problem:
-            raise NotImplementedError
-        else: 
-            self.solve() 
-            return project(self.f+grad(self.u),X0), project(self.g-self.u,X1)
-             
-   
+        self.solve() 
+        self.Projector_f.project()  
+        self.Projector_g.project()
+
+
 class BoundaryDivProjectorSolver(LinearVariationalSolver):
     """ Mixed Poisson Solver (projection on div free constraint with assigned fluxes)
 
@@ -200,18 +223,19 @@ class BoundaryDivProjectorSolver(LinearVariationalSolver):
                inf_sigma sup_phi |sigma - f|^2/2 + |alpha -g|^2_fluxes/2 - <sigma, grad phi> + <alpha,phi>_boundary 
     """
 
-    def __init__(self,f,g,u0, mixed_problem = False, V = None):
+    def __init__(self,f,g,f_out,g_out,u0, mixed_problem = False, V = None):
         """ 
         :arg f: Function (vector field) to be projected
         :arg g: Function (scalar field) to be projected (only boundary values are taken into account)
         :arg u0: H(div) function with correct boundary conditions (fluxes)
         :arg mixed_problem: flag to solve problem in mixed formulation
         :arg V: H(div) function space to be provided for mixed_formulation
+        :arg Spaces_solution: list of function spaces where the solution needs to be projected onto
         """
         self.mixed_problem = mixed_problem  
         self.f = f
         self.g = g
-    
+ 
         mesh = u0.ufl_domain()
         if mixed_problem:
             """ Set up a mixed problem with the function space from proj_f and the lowest order DG space"""
@@ -234,27 +258,28 @@ class BoundaryDivProjectorSolver(LinearVariationalSolver):
             L = -dot(f,grad(psi))*dx + dot(u0,n)*psi*ds_tb + g*psi*ds_v(degree=0)
         
             #nullspace = VectorSpaceBasis(constant=True)
+            #parameters = {"ksp_type": "gmres", 
+            #              "pc_type": "hypre" }
      
             parameters = {"ksp_type": "cg",
                           "pc_type": "ilu"}
             
             self.u = Function(W)  
             problem = LinearVariationalProblem(a,L, self.u)
+          
+            self.Projector_f = Projector(self.f+grad(self.u),f_out)
+            self.Projector_g = Projector(self.g-self.u,g_out)
 
-       
         super(LinearVariationalSolver,self).__init__(problem,
                                                          #nullspace = nullspace,
                                                          solver_parameters = parameters)
 
-    def get_projected_solution(self,X0,X1):
+    def project(self):
         """ Project solution on X"""
-        if self.mixed_problem:
-            raise NotImplementedError
-        else: 
-            self.solve() 
-              
-            return project(self.f+grad(self.u),X0), project(self.g-self.u,X1) #NOTE this is an L2 Projection
-             
+        self.solve() 
+        self.Projector_f.project()  
+        self.Projector_g.project()
+            
   
    
 def ApplyOnDofs(method,f,*args):

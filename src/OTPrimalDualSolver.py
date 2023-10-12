@@ -46,17 +46,19 @@ class OTPrimalDualSolver(OptimalTransportProblem):
         pxi = Function(self.X)
 
         # Continuity constraint projection
-        divsolver = DivProjectorSolver(self.sigmaX -tau1*self.q ,self.sigma0, 
-                                                     mixed_problem = False, V= None)
-                                                     #mixed_problem = True, V = self.V)
+        divsolver = DivProjectorSolver(self.sigmaX -tau1*self.q,
+                                       self.sigmaX,
+                                       self.sigma0, 
+                                       #mixed_problem = False, V= None)
+                                       mixed_problem = True, V = self.V)
                           
         while err > tol and i < NmaxIter:
 
             sigma_oldX.assign(self.sigmaX)
             
             # Proximal operator continuity
-            self.sigmaX.assign(divsolver.get_projected_solution(self.X))
-            
+            divsolver.project()
+
             # Proximal operator kinetic energy
             pxi.assign(assemble(self.q+tau2*(2*self.sigmaX-sigma_oldX)))            
             ApplyOnDofs(projection,pxi)
@@ -76,6 +78,6 @@ class OTPrimalDualSolver(OptimalTransportProblem):
 
 
         # Get H(div) solution 
-        divsolver = DivProjectorSolver(self.sigmaX, self.sigma0, mixed_problem = True, V = self.V)
-        self.sigma.assign(divsolver.get_projected_solution(self.V))
+        divsolver = DivProjectorSolver(self.sigmaX, self.sigma, self.sigma0, mixed_problem = True, V = self.V)
+        divsolver.project()
 

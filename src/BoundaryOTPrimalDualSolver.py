@@ -9,7 +9,7 @@ from .BoundaryOptimalTransportProblem import BoundaryOptimalTransportProblem
 
 class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
     """ Primal dual (PDGH) solver for dynamic transport problem """
-    def __init__(self, rho0, rho1, gamma_0, gamma_1, base_mesh=None, layers = 20, degX = 0, shift = (0.,0.), unit_mass = False):
+    def __init__(self, rho0, rho1, gamma_0, gamma_1, base_mesh=None, delta = 1., layers = 20, degX = 0, shift = (0.,0.), unit_mass = False):
 
         """
         :arg rho0: function, initial density (bulk)
@@ -17,16 +17,18 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
         :arg gamma0: function, initial density (interface)
         :arg gamma1: function, final density (interface)
         :arg base_mesh: space mesh
+        :arg delta: float, scaling factor multiplying (total) cost on boundary
         :arg layers: int number of time steps  
         :arg degX: int polynomial degree in space of q dual variable to (rho,m)
         :arg shift: shift on coordinates for moment computations
         :arg unit_mass: flag to normalize mass to one (both on bulk and interface)
         """
-                      
+        self.delta = delta
+                    
         # Initialize mesh and variables (denisities normalized to have unit mass)
         super().__init__(rho0, rho1, gamma_0, gamma_1, base_mesh = base_mesh, layers = layers, degX = degX, 
                                                                          shift = shift, unit_mass = unit_mass)
-
+  
     def solve(self,tau1,tau2, tol = 10e-7, NmaxIter= 2e3, projection_bulk = projection,
                                                                     projection_interface = projection):
         """
@@ -60,14 +62,18 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
         # Continuity constraint projection
         divsolver_bulk = BoundaryDivProjectorSolver(self.ot_bulk.sigmaX - tau1*self.ot_bulk.q,
                                                     self.ot_bulk.fluxes - tau1*self.ot_bulk.multiplier_fluxes,
+                                                    self.ot_bulk.sigmaX,
+                                                    self.ot_bulk.fluxes,
                                                     self.ot_bulk.sigma0, 
-                                                    mixed_problem = False, V= None)
-        
+                                                    mixed_problem = False , V= None)
         divsolver_interface = UnbalancedDivProjectorSolver(self.ot_interface.sigmaX -tau1*self.ot_interface.q, 
                                                            self.ot_interface.alpha-tau1*(self.ot_interface.r
                                                              + self.ot_interface.multiplier_fluxes),
+                                                           self.ot_interface.sigmaX,
+                                                           self.ot_interface.alpha,
                                                            self.ot_interface.sigma0, 
-                                                           mixed_problem = False, V= None)
+                                                           mixed_problem = True, V= self.ot_interface.V)
+          
                                                                                                                
         while err > tol and i < NmaxIter:
 
@@ -79,19 +85,13 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
              
             
             # Proximal operator continuity bulk
-            sigma_sol, fluxes_sol = divsolver_bulk.get_projected_solution(self.ot_bulk.X,self.ot_bulk.Fluxes)
-            self.ot_bulk.sigmaX.assign(sigma_sol)
-            self.ot_bulk.fluxes.assign(fluxes_sol)
+            divsolver_bulk.project()
 
             self.ot_interface.fluxes.dat.data[:] = self.apply_map_boundary_mesh(self.ot_bulk.fluxes)
             
             # Proximal operator continuity interface
-            sigma_f_sol, alpha_f_sol = divsolver_interface.get_projected_solution(self.ot_interface.X,
-                                                                                      self.ot_interface.F)
-            self.ot_interface.sigmaX.assign(sigma_f_sol)
-            self.ot_interface.alpha.assign(alpha_f_sol)
+            divsolver_interface.project()             
             
-             
             # Proximal operator kinetic energy (bulk)
             pxi.assign(assemble(self.ot_bulk.q + tau2*(2*self.ot_bulk.sigmaX-sigma_oldX))) 
             ApplyOnDofsList(projection_bulk,[pxi]) 
@@ -130,6 +130,6 @@ class BoundaryOTPrimalDualSolver(BoundaryOptimalTransportProblem):
 
         # Get H(div) solution (to be modified)
         divsolver = BoundaryDivProjectorSolver(self.ot_bulk.sigmaX, self.ot_bulk.fluxes,
-                                                 self.ot_bulk.sigma0, mixed_problem = False, V = None)
-        sigma_sol, fluxes_sol = divsolver.get_projected_solution(self.ot_bulk.V,self.ot_bulk.Fluxes)
-        self.ot_solver.sigma.assign(sigma_sol)
+                                               self.ot_bulk.sigma, self.ot_bulk.fluxes,
+                                               self.ot_bulk.sigma0, mixed_problem = False, V = None)
+        divsolver.project() 

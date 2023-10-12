@@ -50,8 +50,9 @@ class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
  
         # Continuity constraint projection
         divsolver = UnbalancedDivProjectorSolver(self.sigmaX -tau1*self.q, self.alpha-tau1*self.r,
-                                                     self.sigma0, 
-                                                     mixed_problem = False, V= None)
+                                                 self.sigmaX, self.alpha,
+                                                 self.sigma0, 
+                                                 mixed_problem = False, V= None)
                                                                                
         while err > tol and i < NmaxIter:
 
@@ -59,9 +60,7 @@ class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
             alpha_old.assign(self.alpha)
 
             # Proximal operator continuity
-            sigma_sol, alpha_sol = divsolver.get_projected_solution(self.X,self.F)
-            self.sigmaX.assign(sigma_sol)
-            self.alpha.assign(alpha_sol)
+            divsolver.project()
             
             # Proximal operator kinetic energy
             pxi.assign(assemble(self.q+tau2*(2*self.sigmaX-sigma_oldX))) 
@@ -85,6 +84,6 @@ class UnbalancedOTPrimalDualSolver(UnbalancedOptimalTransportProblem):
 
 
         # Get H(div) solution 
-        divsolver = DivProjectorSolver(self.sigmaX, self.sigma0, mixed_problem = True, V = self.V)
-        self.sigma.assign(divsolver.get_projected_solution(self.V))
+        divsolver = DivProjectorSolver(self.sigmaX, self.sigma, self.sigma0, mixed_problem = True, V = self.V)
+        divsolver.project()
 
